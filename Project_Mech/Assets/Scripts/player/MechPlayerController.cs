@@ -4,41 +4,84 @@ using UnityEngine;
 
 public class MechPlayerController : MonoBehaviour
 {
-    //Get references ***********************************
-    private Rigidbody rb;                         // rigid body of player
-    public GameObject playerCam;
-    public GameObject orientation;
-    public Grapple grappleScript;
-    public bool IsGrounded;
-
-
-    // Get Parameters  ***********************************
-
-    //movement
-    public float accleration = 500;
-    public float MaxSpeed = 15;
-    public float RotationSpeed = 40;
-    private float velocity;// hold calculated velocity and assign this to player
-    public Vector3 VelocityDirection = Vector3.forward;  // hold velocities direction
-    float currentRotation = 0;
-    float CamRotationTracker;
-    public float swingSpeedMultiplier = 0.6f; //controls the force player can apply while swinging
-    public float CounterForce = 6; // force acting in opposite direction to prevent velocity exceeding hard cap
-    public float VelocityHardCap = 25; //velocity above witch counter force starts acting
-    private float PlayerCamVerticleAngleTracker; // tracks verticle angle of player camera
-    private float CamCorrectionAmount; // when there is no input the camea is slightly tilted by this amount
-    [Range(0f,1f)]
-    public float ReduceSlideWhileTurning;
-    public LayerMask UseSlideReductionOn;
-    private float Angle;
-    private bool TurnOffSlideReduction = false;
-    public float ActivateSlideReductionangle = 30;
     
+
+
+  
+    [Header("Get references")]
+    [SerializeField]
+    private GameObject playerCam;                        // get player FPS camera
+    [SerializeField]
+    private Grapple grappleScript;                       // get grapple script        
+   
+    private Rigidbody rb;                               // rigid body of player
+
+
+
+
+    [Header("Movement")]
+    [SerializeField]
+    private float accleration = 500;                    // how fast mech reches top speed
+    [SerializeField]
+    private float MaxSpeed = 15;                        //top speed of the mech
+    [SerializeField]
+    private float RotationSpeed = 40;                   // how fast does the mech rotate or turn
+    private float velocity;                             // hold calculated velocity and assign this to player
+    public Vector3 VelocityDirection = Vector3.forward; // hold velocities direction
+    [SerializeField]
+    private float CounterForce = 6;                     // force acting in opposite direction to prevent velocity exceeding hard cap
+    [SerializeField]
+    private float VelocityHardCap = 25;                 //velocity above witch counter force starts acting
+
+
+
+    [Header("Slide Reduction While Turning")]
+    [SerializeField]
+    [Range(0f, 1f)]
+    private float ReduceSlideWhileTurning;              // how much slide reduction do you want?
+    [SerializeField]
+    private LayerMask UseSlideReductionOn;              // what surface to use slide reduction on?
+    private float Angle;                                // keep track of angle bentween rigidbodys velocity and VelocityDirection
+    private bool TurnOffSlideReduction = false;         // do you want to turn off slide reduction for any reason?
+    [SerializeField]
+    private float ActivateSlideReductionangle = 30;     // activate slide reduction if angle between rb velocity direction and velocityDirection is more than this
+    private float swingSpeedMultiplier = 0.6f;          //controls the force player can apply while swinging
+
+
     
+    [Header("Camera Rotation Effect")]
+    private float currentRotation = 0;                  // this is how much the camera is being rotate in this frame
+    private float CamRotationTracker;                   // keep track of how much the camera is currently rotated
+    private float CamCorrectionAmount;                  // when there is no input the camera is slightly tilted by this amount
+    private bool reduceSlide;                           // check if you are on slide reducing surface
+    [SerializeField]
+    private float maxRotation = 20;                     // how much do you want the camera to tile at its maximum
+    [SerializeField]
+    private float CamEffectRotationSpeed = 1;           // how fast should camera tilt
+    [SerializeField]
+    private float SnapBackSpeed = 30;                   // how fast should camera recover bask to 0 rotation fomr the tilt
+
    
 
-    //jump
-    private bool jumped = false;
+    [Header("Ground Check")]
+    [SerializeField]
+    private LayerMask WhatIsGround;
+    [SerializeField]
+    private float GroundCheckDistance = 5;              //how far below player to check the ground
+    private bool IsGrounded;
+
+
+
+    [Header("jump")]
+    [SerializeField]
+    private float JumpForce = 10;                       // what force to apply when jump is pressed
+    private bool jumped = false;                        // did player jump?
+
+
+
+    // Look
+    private float PlayerCamVerticleAngleTracker;        // tracks verticle angle of player camera
+
 
     public void Start()
     {
@@ -49,8 +92,8 @@ public class MechPlayerController : MonoBehaviour
     }
 
 
-
-    public void Movement(float throttle, Vector2 LookDirection)                   // throttle is player input forward or backwards, +1 to -1
+    //move player
+    public void Movement(float throttle, Vector2 LookDirection)  // throttle is player input forward or backwards, +1 to -1 and look direction is input of where player is looking
     {
         //make sure player, velocity direction and camera are always rotated by the same amount in Y
         playerCam.transform.eulerAngles = new Vector3(playerCam.transform.eulerAngles.x,gameObject.transform.rotation.eulerAngles.y, playerCam.transform.eulerAngles.z);
@@ -65,7 +108,7 @@ public class MechPlayerController : MonoBehaviour
         {
             if (grappleScript.IsGrappleActive)
             {
-                velocity *= swingSpeedMultiplier;
+                velocity *= swingSpeedMultiplier;   // playe can still throttle or apply velocity while swinging 
             }
             rb.velocity += (VelocityDirection * velocity) * Time.deltaTime;
         }
@@ -96,23 +139,31 @@ public class MechPlayerController : MonoBehaviour
 
     }
 
-    public void GroundCheck(LayerMask WhatIsGround, float JumpCheckDistance)
+
+    //check for ground or other surfaces
+    public void GroundCheck( )
     {
         RaycastHit hitinfo;
-        Debug.DrawRay(gameObject.transform.position, gameObject.transform.position - transform.up * JumpCheckDistance, Color.yellow);
-        if (Physics.Raycast(gameObject.transform.position, -gameObject.transform.up, out hitinfo, JumpCheckDistance, WhatIsGround))
+        Debug.DrawRay(gameObject.transform.position, gameObject.transform.position - transform.up * GroundCheckDistance, Color.yellow); // ground check ray visualized
+        if (Physics.Raycast(gameObject.transform.position, -gameObject.transform.up, out hitinfo, GroundCheckDistance, WhatIsGround))
         {
             IsGrounded = true;
+            if (((1<<hitinfo.transform.gameObject.layer) & UseSlideReductionOn) != 0) // check layer for reduce sliding
+            {
+                reduceSlide = true;
+            }
         }
 
         else
         {
             IsGrounded = false;
+            reduceSlide = false;
         }
         
     }
 
 
+    // lock and hide the cursor in game 
     public void LockCursor()
     {
         Cursor.lockState = CursorLockMode.Locked;
@@ -120,8 +171,8 @@ public class MechPlayerController : MonoBehaviour
     }
 
 
-    // rotate the camera in the direction player is turning
-    public void CameraRotEffect(Vector2 LookDirection, float maxRotation, float RotationSpeed, float SnapBackSpeed)
+    // rotate the camera in the direction player is turning 
+    public void CameraRotEffect(Vector2 LookDirection )
     {
         
         // if player is not turning then straigten the camera back to 0 rotation
@@ -169,7 +220,7 @@ public class MechPlayerController : MonoBehaviour
         CamRotationTracker = Mathf.Clamp(CamRotationTracker, -maxRotation, maxRotation);
 
         //rotation value camera is current being rotated by
-        currentRotation += RotationSpeed * Time.deltaTime * -LookDirection.x;
+        currentRotation += CamEffectRotationSpeed * Time.deltaTime * -LookDirection.x;
         currentRotation = Mathf.Clamp(currentRotation, -maxRotation, maxRotation);  //clamp it between max in either direction
         
         // dont rotate the camera if its already rotated by max      
@@ -179,9 +230,11 @@ public class MechPlayerController : MonoBehaviour
           
         }
 
-    }
+    }   //look direction is player input of where they are looking
 
-    public void Jump(float JumpForce)
+
+    // make player jump
+    public void Jump()
     {
         if (IsGrounded)
         {
@@ -190,13 +243,16 @@ public class MechPlayerController : MonoBehaviour
         }
     }
 
+
+    //reduces or removes sliding when player is moving and turning
     public void TurnSlideReduction()
     {
-        RaycastHit hitinfo;
+       // RaycastHit hitinfo;
         Debug.DrawRay(transform.position , rb.velocity.normalized * 10, Color.black);
        
         Angle = Vector3.Angle(rb.velocity, VelocityDirection);
-        if (Angle > ActivateSlideReductionangle && IsGrounded && !grappleScript.IsGrappleActive && !TurnOffSlideReduction && Physics.Raycast(gameObject.transform.position, -gameObject.transform.up, out hitinfo, 5, UseSlideReductionOn))
+        //if (Angle > ActivateSlideReductionangle && IsGrounded && !grappleScript.IsGrappleActive && !TurnOffSlideReduction && Physics.Raycast(gameObject.transform.position, -gameObject.transform.up, out hitinfo, 5, UseSlideReductionOn))
+        if (Angle > ActivateSlideReductionangle && IsGrounded && !grappleScript.IsGrappleActive && !TurnOffSlideReduction && reduceSlide)
         {
             Debug.Log("reducing");
             rb.velocity = Quaternion.Euler(0, Vector3.Angle(rb.velocity, VelocityDirection) * ReduceSlideWhileTurning, 0) * rb.velocity;

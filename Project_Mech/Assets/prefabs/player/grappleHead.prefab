@@ -130,10 +130,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   rb: {fileID: 0}
-  stuck: {x: 0, y: 0, z: 0}
-  collidableLayer:
+  WhatCanGrappleAttachTo:
     serializedVersion: 2
-    m_Bits: 512
+    m_Bits: 6656
 --- !u!2083052967 &5597849674135885047
 VisualEffect:
   m_ObjectHideFlags: 0
